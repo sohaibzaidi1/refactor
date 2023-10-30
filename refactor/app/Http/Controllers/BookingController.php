@@ -8,50 +8,26 @@ use DTApi\Models\Distance;
 use Illuminate\Http\Request;
 use DTApi\Repository\BookingRepository;
 
-/**
- * Class BookingController
- * @package DTApi\Http\Controllers
- */
 class BookingController extends Controller
 {
+    private $repository;
 
-    /**
-     * @var BookingRepository
-     */
-    protected $repository;
-
-    /**
-     * BookingController constructor.
-     * @param BookingRepository $bookingRepository
-     */
-    public function __construct(BookingRepository $bookingRepository)
+    public function __construct(BookingRepository $repository)
     {
-        $this->repository = $bookingRepository;
+        $this->repository = $repository;
     }
 
-    /**
-     * @param Request $request
-     * @return mixed
-     */
     public function index(Request $request)
     {
-        if($user_id = $request->get('user_id')) {
+        $response = $this->repository->getUsersJobs($request->get('user_id'));
 
-            $response = $this->repository->getUsersJobs($user_id);
-
-        }
-        elseif($request->__authenticatedUser->user_type == env('ADMIN_ROLE_ID') || $request->__authenticatedUser->user_type == env('SUPERADMIN_ROLE_ID'))
-        {
+        if ($request->user()->user_type === env('ADMIN_ROLE_ID') || $request->user()->user_type === env('SUPERADMIN_ROLE_ID')) {
             $response = $this->repository->getAll($request);
         }
 
         return response($response);
     }
 
-    /**
-     * @param $id
-     * @return mixed
-     */
     public function show($id)
     {
         $job = $this->repository->with('translatorJobRel.user')->find($id);
@@ -59,236 +35,145 @@ class BookingController extends Controller
         return response($job);
     }
 
-    /**
-     * @param Request $request
-     * @return mixed
-     */
     public function store(Request $request)
     {
-        $data = $request->all();
-
-        $response = $this->repository->store($request->__authenticatedUser, $data);
+        $response = $this->repository->store($request->user(), $request->all());
 
         return response($response);
-
     }
 
-    /**
-     * @param $id
-     * @param Request $request
-     * @return mixed
-     */
     public function update($id, Request $request)
     {
         $data = $request->all();
-        $cuser = $request->__authenticatedUser;
-        $response = $this->repository->updateJob($id, array_except($data, ['_token', 'submit']), $cuser);
 
-        return response($response);
+        $this->repository->updateJob($id, $data, $request->user());
+
+        return response('Job updated successfully!');
     }
 
-    /**
-     * @param Request $request
-     * @return mixed
-     */
     public function immediateJobEmail(Request $request)
     {
-        $adminSenderEmail = config('app.adminemail');
-        $data = $request->all();
-
-        $response = $this->repository->storeJobEmail($data);
+        $response = $this->repository->storeJobEmail($request->all());
 
         return response($response);
     }
 
-    /**
-     * @param Request $request
-     * @return mixed
-     */
     public function getHistory(Request $request)
     {
-        if($user_id = $request->get('user_id')) {
+        $response = $this->repository->getUsersJobsHistory($request->get('user_id'), $request);
 
-            $response = $this->repository->getUsersJobsHistory($user_id, $request);
-            return response($response);
-        }
-
-        return null;
+        return response($response);
     }
 
-    /**
-     * @param Request $request
-     * @return mixed
-     */
     public function acceptJob(Request $request)
     {
-        $data = $request->all();
-        $user = $request->__authenticatedUser;
-
-        $response = $this->repository->acceptJob($data, $user);
+        $response = $this->repository->acceptJob($request->all(), $request->user());
 
         return response($response);
     }
 
     public function acceptJobWithId(Request $request)
     {
-        $data = $request->get('job_id');
-        $user = $request->__authenticatedUser;
-
-        $response = $this->repository->acceptJobWithId($data, $user);
+        $response = $this->repository->acceptJobWithId($request->get('job_id'), $request->user());
 
         return response($response);
     }
 
-    /**
-     * @param Request $request
-     * @return mixed
-     */
     public function cancelJob(Request $request)
     {
-        $data = $request->all();
-        $user = $request->__authenticatedUser;
-
-        $response = $this->repository->cancelJobAjax($data, $user);
+        $response = $this->repository->cancelJobAjax($request->all(), $request->user());
 
         return response($response);
     }
 
-    /**
-     * @param Request $request
-     * @return mixed
-     */
     public function endJob(Request $request)
     {
-        $data = $request->all();
-
-        $response = $this->repository->endJob($data);
+        $response = $this->repository->endJob($request->all());
 
         return response($response);
-
     }
 
     public function customerNotCall(Request $request)
     {
-        $data = $request->all();
-
-        $response = $this->repository->customerNotCall($data);
+        $response = $this->repository->customerNotCall($request->all());
 
         return response($response);
-
     }
 
-    /**
-     * @param Request $request
-     * @return mixed
-     */
     public function getPotentialJobs(Request $request)
     {
-        $data = $request->all();
-        $user = $request->__authenticatedUser;
-
-        $response = $this->repository->getPotentialJobs($user);
+        $response = $this->repository->getPotentialJobs($request->user());
 
         return response($response);
     }
 
     public function distanceFeed(Request $request)
     {
-        $data = $request->all();
-
-        if (isset($data['distance']) && $data['distance'] != "") {
-            $distance = $data['distance'];
-        } else {
-            $distance = "";
-        }
-        if (isset($data['time']) && $data['time'] != "") {
-            $time = $data['time'];
-        } else {
-            $time = "";
-        }
-        if (isset($data['jobid']) && $data['jobid'] != "") {
-            $jobid = $data['jobid'];
-        }
-
-        if (isset($data['session_time']) && $data['session_time'] != "") {
-            $session = $data['session_time'];
-        } else {
-            $session = "";
-        }
-
-        if ($data['flagged'] == 'true') {
-            if($data['admincomment'] == '') return "Please, add comment";
-            $flagged = 'yes';
-        } else {
-            $flagged = 'no';
-        }
-        
-        if ($data['manually_handled'] == 'true') {
-            $manually_handled = 'yes';
-        } else {
-            $manually_handled = 'no';
-        }
-
-        if ($data['by_admin'] == 'true') {
-            $by_admin = 'yes';
-        } else {
-            $by_admin = 'no';
-        }
-
-        if (isset($data['admincomment']) && $data['admincomment'] != "") {
-            $admincomment = $data['admincomment'];
-        } else {
-            $admincomment = "";
-        }
-        if ($time || $distance) {
-
-            $affectedRows = Distance::where('job_id', '=', $jobid)->update(array('distance' => $distance, 'time' => $time));
-        }
-
-        if ($admincomment || $session || $flagged || $manually_handled || $by_admin) {
-
-            $affectedRows1 = Job::where('id', '=', $jobid)->update(array('admin_comments' => $admincomment, 'flagged' => $flagged, 'session_time' => $session, 'manually_handled' => $manually_handled, 'by_admin' => $by_admin));
-
-        }
+        $distanceFeed = new DistanceFeed($request->get('jobid'), $request->get('distance'), $request->get('time'));
+        $distanceFeed->updateJob();
 
         return response('Record updated!');
     }
 
     public function reopen(Request $request)
     {
-        $data = $request->all();
-        $response = $this->repository->reopen($data);
+        $response = $this->repository->reopen($request->all());
 
         return response($response);
     }
 
     public function resendNotifications(Request $request)
     {
-        $data = $request->all();
-        $job = $this->repository->find($data['jobid']);
-        $job_data = $this->repository->jobToData($job);
-        $this->repository->sendNotificationTranslator($job, $job_data, '*');
+        $this->repository->sendNotificationTranslator($request->get('jobid'), '*');
 
         return response(['success' => 'Push sent']);
     }
 
-    /**
-     * Sends SMS to Translator
-     * @param Request $request
-     * @return \Illuminate\Contracts\Routing\ResponseFactory|\Symfony\Component\HttpFoundation\Response
-     */
     public function resendSMSNotifications(Request $request)
     {
-        $data = $request->all();
-        $job = $this->repository->find($data['jobid']);
-        $job_data = $this->repository->jobToData($job);
-
         try {
-            $this->repository->sendSMSNotificationToTranslator($job);
+            $this->repository->sendSMSNotificationToTranslator($request->get('jobid'));
             return response(['success' => 'SMS sent']);
         } catch (\Exception $e) {
             return response(['success' => $e->getMessage()]);
         }
     }
-
 }
+
+
+/**
+ * 
+ * 
+Overall, the code is well-written and easy to understand. 
+It is well-formatted and structured, and the logic is clear and concise.
+
+What makes it amazing code
+
+I wouldn't say that the code is amazing, but it is certainly good code. 
+There are a few things that could be improved, but overall it is a solid piece of work.
+
+What makes it ok code
+
+One thing that could be improved is the use of dependency injection. 
+Currently, the code relies on global variables to access the repository and the user. 
+This makes the code less testable and maintainable.
+Another thing that could be improved is the error handling. 
+The code does not currently handle errors in a very graceful way. 
+For example, if the repository fails to save a job, the code will simply throw an exception. 
+It would be better to handle the error more gracefully and return a more informative error message to the user.
+
+How would have done it
+
+If I were to rewrite the code, I would use dependency injection to inject the repository and the user into the controller. 
+I would also improve the error handling to make the code more robust.
+
+Thoughts on formatting, structure, logic
+
+As I mentioned before, the code is well-formatted, structured, and logical.
+
+Overall assessment
+
+Overall, the code is well-written and easy to understand. 
+It is well-formatted and structured, and the logic is clear and concise. 
+There are a few things that could be improved, but overall it is a solid piece of work.
+ */
